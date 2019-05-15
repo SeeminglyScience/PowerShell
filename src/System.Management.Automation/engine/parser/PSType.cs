@@ -608,6 +608,32 @@ namespace System.Management.Automation.Language
                 DefineCustomAttributes(property, propertyMemberAst.Attributes, _parser, AttributeTargets.Field | AttributeTargets.Property);
             }
 
+            private PropertyBuilder EmitExplicitAccessorPropertyIl(PropertyMemberAst propertyMemberAst, Type type)
+            {
+                PropertyBuilder property = _typeBuilder.DefineProperty(
+                    propertyMemberAst.Name,
+                    Reflection.PropertyAttributes.None,
+                    type,
+                    parameterTypes: null);
+
+                if (propertyMemberAst.GetterBody != null)
+                {
+                    property.SetGetMethod((MethodBuilder)DefineMethod(propertyMemberAst.GetterBody));
+                }
+
+                if (propertyMemberAst.SetterBody != null)
+                {
+                    property.SetSetMethod((MethodBuilder)DefineMethod(propertyMemberAst.SetterBody));
+                }
+
+                if (propertyMemberAst.IsHidden)
+                {
+                    property.SetCustomAttribute(s_hiddenCustomAttributeBuilder);
+                }
+
+                return property;
+            }
+
             private PropertyBuilder EmitPropertyIl(PropertyMemberAst propertyMemberAst, Type type)
             {
                 // backing field is always private.
@@ -625,6 +651,12 @@ namespace System.Management.Automation.Language
                     backingFieldAttributes |= FieldAttributes.Static;
                     getSetAttributes |= Reflection.MethodAttributes.Static;
                 }
+
+                if (propertyMemberAst.GetterBody != null || propertyMemberAst.SetterBody != null)
+                {
+                    return EmitExplicitAccessorPropertyIl(propertyMemberAst, type);
+                }
+
                 // C# naming convention for backing fields.
                 string backingFieldName = string.Format(CultureInfo.InvariantCulture, "<{0}>k__BackingField", propertyMemberAst.Name);
                 var backingField = _typeBuilder.DefineField(backingFieldName, type, backingFieldAttributes);
@@ -813,18 +845,18 @@ namespace System.Management.Automation.Language
                 return mi != null && mi.IsFinal;
             }
 
-            private void DefineMethod(FunctionMemberAst functionMemberAst)
+            private MethodBase DefineMethod(FunctionMemberAst functionMemberAst)
             {
                 var parameterTypes = GetParameterTypes(functionMemberAst);
                 if (parameterTypes == null)
                 {
                     // There must have been an error, just return
-                    return;
+                    return null;
                 }
 
                 if (CheckForDuplicateOverload(functionMemberAst, parameterTypes))
                 {
-                    return;
+                    return null;
                 }
 
                 if (functionMemberAst.IsConstructor)
@@ -839,14 +871,13 @@ namespace System.Management.Automation.Language
                             _parser.ReportError(errorExtent,
                                 nameof(ParserStrings.StaticConstructorCantHaveParameters),
                                 ParserStrings.StaticConstructorCantHaveParameters);
-                            return;
+                            return null;
                         }
 
                         methodAttributes |= Reflection.MethodAttributes.Static;
                     }
 
-                    DefineConstructor(functionMemberAst, functionMemberAst.Attributes, functionMemberAst.IsHidden, methodAttributes, parameterTypes);
-                    return;
+                    return DefineConstructor(functionMemberAst, functionMemberAst.Attributes, functionMemberAst.IsHidden, methodAttributes, parameterTypes);
                 }
 
                 var attributes = functionMemberAst.IsPublic
@@ -874,7 +905,7 @@ namespace System.Management.Automation.Language
                         nameof(ParserStrings.TypeNotFound),
                         ParserStrings.TypeNotFound,
                         functionMemberAst.ReturnType.TypeName.FullName);
-                    return;
+                    return null;
                 }
 
                 var method = _typeBuilder.DefineMethod(functionMemberAst.Name, attributes, returnType, parameterTypes);
@@ -887,9 +918,11 @@ namespace System.Management.Automation.Language
                 var ilGenerator = method.GetILGenerator();
                 DefineMethodBody(functionMemberAst, ilGenerator, GetMetaDataName(method.Name, parameterTypes.Count()), functionMemberAst.IsStatic, parameterTypes, returnType,
                     (i, n) => method.DefineParameter(i, ParameterAttributes.None, n));
+
+                return method;
             }
 
-            private void DefineConstructor(IParameterMetadataProvider ipmp, ReadOnlyCollection<AttributeAst> attributeAsts, bool isHidden, Reflection.MethodAttributes methodAttributes, Type[] parameterTypes)
+            private ConstructorBuilder DefineConstructor(IParameterMetadataProvider ipmp, ReadOnlyCollection<AttributeAst> attributeAsts, bool isHidden, Reflection.MethodAttributes methodAttributes, Type[] parameterTypes)
             {
                 bool isStatic = (methodAttributes & Reflection.MethodAttributes.Static) != 0;
                 var ctor = isStatic
@@ -916,6 +949,8 @@ namespace System.Management.Automation.Language
 
                 DefineMethodBody(ipmp, ilGenerator, GetMetaDataName(ctor.Name, parameterTypes.Count()), isStatic, parameterTypes, typeof(void),
                     (i, n) => ctor.DefineParameter(i, ParameterAttributes.None, n));
+
+                return ctor;
             }
 
             private string GetMetaDataName(string name, int numberOfParameters)

@@ -1674,7 +1674,7 @@ namespace System.Management.Automation.Language
             {
                 CompilingMemberFunction = true;
                 MemberFunctionReturnType = functionMemberAst.GetReturnType();
-                _memberFunctionType = (TypeDefinitionAst)functionMemberAst.Parent;
+                _memberFunctionType = functionMemberAst.DefiningType;
                 SpecialMemberFunctionType = SpecialMemberFunctionType.None;
                 if (functionMemberAst.Name.Equals(_memberFunctionType.Name, StringComparison.OrdinalIgnoreCase))
                 {

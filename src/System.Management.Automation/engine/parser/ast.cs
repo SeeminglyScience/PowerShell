@@ -2972,6 +2972,19 @@ namespace System.Management.Automation.Language
     }
 
     /// <summary>
+    /// The accessor kinds present on a property.
+    /// </summary>
+    [Flags]
+    public enum AccessorKind
+    {
+        /// <summary>The property contains a get accessor method.</summary>
+        Get = 0x01,
+
+        /// <summary>The property contains a set accessor method.</summary>
+        Set = 0x02,
+    }
+
+    /// <summary>
     /// The attributes for a property.
     /// </summary>
     [Flags]
@@ -3004,6 +3017,42 @@ namespace System.Management.Automation.Language
         private static readonly ReadOnlyCollection<AttributeAst> s_emptyAttributeList =
             Utils.EmptyReadOnlyCollection<AttributeAst>();
 
+
+        /// <summary>
+        /// Construct a property member.
+        /// </summary>
+        /// <param name="extent">The extent of the property starting with any custom attributes.</param>
+        /// <param name="name">The name of the property.</param>
+        /// <param name="propertyType">The ast for the type of the property - may be null.</param>
+        /// <param name="attributes">The custom attributes for the property.</param>
+        /// <param name="propertyAttributes">The attributes (like public or static) for the property.</param>
+        /// <param name="accessorKinds">
+        /// The accessors (like get or set) that have been defined for this property.
+        /// </param>
+        /// <param name="getterBody">The body for the getter accessor - may be null.</param>
+        /// <param name="setterBody">The body for the setter accessor - may be null.</param>
+        public PropertyMemberAst(
+            IScriptExtent extent,
+            string name,
+            TypeConstraintAst propertyType,
+            IEnumerable<AttributeAst> attributes,
+            PropertyAttributes propertyAttributes,
+            AccessorKind accessorKinds,
+            FunctionMemberAst getterBody,
+            FunctionMemberAst setterBody)
+            : this(
+                extent,
+                name,
+                propertyType,
+                attributes,
+                propertyAttributes,
+                initialValue: null,
+                accessorKinds,
+                getterBody,
+                setterBody)
+        {
+        }
+
         /// <summary>
         /// Construct a property member.
         /// </summary>
@@ -3013,7 +3062,50 @@ namespace System.Management.Automation.Language
         /// <param name="attributes">The custom attributes for the property.</param>
         /// <param name="propertyAttributes">The attributes (like public or static) for the property.</param>
         /// <param name="initialValue">The initial value of the property (may be null).</param>
-        public PropertyMemberAst(IScriptExtent extent, string name, TypeConstraintAst propertyType, IEnumerable<AttributeAst> attributes, PropertyAttributes propertyAttributes, ExpressionAst initialValue)
+        public PropertyMemberAst(
+            IScriptExtent extent,
+            string name,
+            TypeConstraintAst propertyType,
+            IEnumerable<AttributeAst> attributes,
+            PropertyAttributes propertyAttributes,
+            ExpressionAst initialValue)
+            : this(
+                extent,
+                name,
+                propertyType,
+                attributes,
+                propertyAttributes,
+                initialValue,
+                AccessorKind.Get | AccessorKind.Set,
+                getterBody: null,
+                setterBody: null)
+        {
+        }
+
+        /// <summary>
+        /// Construct a property member.
+        /// </summary>
+        /// <param name="extent">The extent of the property starting with any custom attributes.</param>
+        /// <param name="name">The name of the property.</param>
+        /// <param name="propertyType">The ast for the type of the property - may be null.</param>
+        /// <param name="attributes">The custom attributes for the property.</param>
+        /// <param name="propertyAttributes">The attributes (like public or static) for the property.</param>
+        /// <param name="initialValue">The initial value of the property (may be null).</param>
+        /// <param name="accessorKinds">
+        /// The accessors (like get or set) that have been defined for this property.
+        /// </param>
+        /// <param name="getterBody">The body for the getter accessor - may be null.</param>
+        /// <param name="setterBody">The body for the setter accessor - may be null.</param>
+        private PropertyMemberAst(
+            IScriptExtent extent,
+            string name,
+            TypeConstraintAst propertyType,
+            IEnumerable<AttributeAst> attributes,
+            PropertyAttributes propertyAttributes,
+            ExpressionAst initialValue,
+            AccessorKind accessorKinds,
+            FunctionMemberAst getterBody,
+            FunctionMemberAst setterBody)
             : base(extent)
         {
             if (string.IsNullOrWhiteSpace(name))
@@ -3051,6 +3143,19 @@ namespace System.Management.Automation.Language
             {
                 SetParent(InitialValue);
             }
+
+            AccessorKinds = accessorKinds;
+            GetterBody = getterBody;
+            if (GetterBody != null)
+            {
+                SetParent(GetterBody);
+            }
+
+            SetterBody = setterBody;
+            if (SetterBody != null)
+            {
+                SetParent(SetterBody);
+            }
         }
 
         /// <summary>
@@ -3077,6 +3182,21 @@ namespace System.Management.Automation.Language
         /// The ast for the initial value of the property.  This property may be null if no initial value was specified.
         /// </summary>
         public ExpressionAst InitialValue { get; private set; }
+
+        /// <summary>
+        /// The accessors (like get or set) that have been defined for this property;
+        /// </summary>
+        public AccessorKind AccessorKinds { get; private set; }
+
+        /// <summary>
+        /// The body of the getter accessor.  This property may be null if the getter body was not specified.
+        /// </summary>
+        public FunctionMemberAst GetterBody { get; private set; }
+
+        /// <summary>
+        /// The body of the setter accessor.  This property may be null if the setter body was not specified.
+        /// </summary>
+        public FunctionMemberAst SetterBody { get; private set; }
 
         /// <summary>
         /// Return true if the property is public.
@@ -3106,7 +3226,18 @@ namespace System.Management.Automation.Language
             var newPropertyType = CopyElement(PropertyType);
             var newAttributes = CopyElements(Attributes);
             var newInitialValue = CopyElement(InitialValue);
-            return new PropertyMemberAst(Extent, Name, newPropertyType, newAttributes, PropertyAttributes, newInitialValue);
+            var newGetter = CopyElement(GetterBody);
+            var newSetter = CopyElement(SetterBody);
+            return new PropertyMemberAst(
+                Extent,
+                Name,
+                newPropertyType,
+                newAttributes,
+                PropertyAttributes,
+                newInitialValue,
+                AccessorKinds,
+                newGetter,
+                newSetter);
         }
 
         internal override string GetTooltip()
@@ -3149,7 +3280,19 @@ namespace System.Management.Automation.Language
                 }
 
                 if (action == AstVisitAction.Continue && InitialValue != null)
+                {
                     action = InitialValue.InternalVisit(visitor);
+                }
+
+                if (action == AstVisitAction.Continue && GetterBody != null)
+                {
+                    action = GetterBody.InternalVisit(visitor);
+                }
+
+                if (action == AstVisitAction.Continue && SetterBody != null)
+                {
+                    action = SetterBody.InternalVisit(visitor);
+                }
             }
 
             return visitor.CheckForPostAction(this, action);
@@ -3293,7 +3436,21 @@ namespace System.Management.Automation.Language
         /// </summary>
         public bool IsConstructor
         {
-            get { return Name.Equals(((TypeDefinitionAst)Parent).Name, StringComparison.OrdinalIgnoreCase); }
+            get => Name.Equals(DefiningType?.Name, StringComparison.OrdinalIgnoreCase);
+        }
+
+        internal TypeDefinitionAst DefiningType
+        {
+            get
+            {
+                TypeDefinitionAst definingType = Parent as TypeDefinitionAst;
+                if (definingType != null)
+                {
+                    return definingType;
+                }
+
+                return Parent?.Parent as TypeDefinitionAst;
+            }
         }
 
         internal IScriptExtent NameExtent { get { return _functionDefinitionAst.NameExtent; } }

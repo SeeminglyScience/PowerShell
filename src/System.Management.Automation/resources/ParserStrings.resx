@@ -1500,4 +1500,10 @@ ModuleVersion : Version of module to import. If used, ModuleName must represent 
   <data name="ClassesNotAllowedInConstrainedLanguage" xml:space="preserve">
     <value>Class keyword is not allowed in ConstrainedLanguage mode.</value>
   </data>
+  <data name="DuplicateAccessorKind" xml:space="preserve">
+    <value>An accessor of type '{0}' has already been defined for this property.</value>
+  </data>
+  <data name="MissingAccessor" xml:space="preserve">
+    <value>Missing property accessor declaration.</value>
+  </data>
 </root>

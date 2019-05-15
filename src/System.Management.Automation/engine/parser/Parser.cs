@@ -4475,12 +4475,85 @@ namespace System.Management.Automation.Language
                 var varToken = token as VariableToken;
 
                 ExpressionAst initialValueAst = null;
+                SkipNewlines();
                 var assignToken = PeekToken();
                 if (assignToken.Kind == TokenKind.Equals)
                 {
                     SkipToken();
                     SkipNewlines();
                     initialValueAst = ExpressionRule();
+                }
+
+                AccessorKind accessorKinds = default;
+                FunctionMemberAst getterBody = null;
+                FunctionMemberAst setterBody = null;
+                if (assignToken.Kind == TokenKind.LCurly)
+                {
+                    SkipToken();
+                    while (true)
+                    {
+                        SkipNewlines();
+                        IScriptExtent accessorExtent = AccessorDeclarationRule(
+                            varToken.Name,
+                            staticToken != null,
+                            typeConstraint.TypeName,
+                            out FunctionMemberAst accessorDefinition,
+                            out AccessorKind kind);
+
+                        if (kind == 0)
+                        {
+                            break;
+                        }
+
+                        if (accessorKinds.HasFlag(kind))
+                        {
+                            ReportError(
+                                accessorExtent,
+                                nameof(ParserStrings.DuplicateAccessorKind),
+                                ParserStrings.DuplicateAccessorKind,
+                                kind);
+
+                            break;
+                        }
+
+                        if (kind == AccessorKind.Get)
+                        {
+                            getterBody = accessorDefinition;
+                            accessorKinds |= AccessorKind.Get;
+                            continue;
+                        }
+
+                        if (kind == AccessorKind.Set)
+                        {
+                            setterBody = accessorDefinition;
+                            accessorKinds |= AccessorKind.Set;
+                        }
+
+                        break;
+                    }
+
+                    SkipNewlines();
+                    Token accessorCloseToken = NextToken();
+                    if (accessorCloseToken.Kind != TokenKind.RCurly)
+                    {
+                        UngetToken(accessorCloseToken);
+                        ReportIncompleteInput(
+                            assignToken.Extent,
+                            nameof(ParserStrings.MissingEndCurlyBrace),
+                            ParserStrings.MissingEndCurlyBrace);
+                    }
+
+                    if (!(accessorKinds.HasFlag(AccessorKind.Get) || accessorKinds.HasFlag(AccessorKind.Set)))
+                    {
+                        ReportError(
+                            ExtentOf(assignToken, accessorCloseToken),
+                            nameof(ParserStrings.MissingAccessor),
+                            ParserStrings.MissingAccessor);
+                    }
+                }
+                else
+                {
+                    accessorKinds = AccessorKind.Get | AccessorKind.Set;
                 }
 
 #if SUPPORT_PUBLIC_PRIVATE
@@ -4517,8 +4590,14 @@ namespace System.Management.Automation.Language
 
                 if (!string.IsNullOrEmpty(varToken.Name))
                 {
+                    if (initialValueAst != null)
+                    {
+                        return new PropertyMemberAst(ExtentOf(startExtent, endExtent), varToken.Name,
+                            typeConstraint, attributeList, attributes, initialValueAst);
+                    }
+
                     return new PropertyMemberAst(ExtentOf(startExtent, endExtent), varToken.Name,
-                        typeConstraint, attributeList, attributes, initialValueAst);
+                        typeConstraint, attributeList, attributes, accessorKinds, getterBody, setterBody);
                 }
                 else
                 {
@@ -5088,6 +5167,152 @@ namespace System.Management.Automation.Language
             }
 
             return name;
+        }
+
+        private IScriptExtent AccessorDeclarationRule(
+            string propertyName,
+            bool isStatic,
+            ITypeName propertyType,
+            out FunctionMemberAst body,
+            out AccessorKind kind)
+        {
+            Token accessorKindToken = PeekToken();
+            if (accessorKindToken.Kind == TokenKind.Get)
+            {
+                kind = AccessorKind.Get;
+            }
+            else if (accessorKindToken.Kind == TokenKind.Set)
+            {
+                kind = AccessorKind.Set;
+            }
+            else
+            {
+                kind = 0;
+                body = null;
+                return null;
+            }
+
+            SkipToken();
+            SkipNewlines();
+            var nextToken = PeekToken();
+            if (nextToken.Kind == TokenKind.Semi)
+            {
+                SkipToken();
+                body = null;
+                return accessorKindToken.Extent;
+            }
+
+            if (nextToken.Kind != TokenKind.LCurly)
+            {
+                body = null;
+                return accessorKindToken.Extent;
+            }
+
+            SkipToken();
+            var statements = new List<StatementAst>();
+            var traps = new List<TrapStatementAst>();
+            IScriptExtent statementExtent = StatementListRule(statements, traps) ?? PositionUtilities.EmptyExtent;
+            Token accessorCloseToken = NextToken();
+            IScriptExtent endingExtent = accessorCloseToken.Extent;
+            if (accessorCloseToken.Kind != TokenKind.RCurly)
+            {
+                UngetToken(accessorCloseToken);
+                ReportIncompleteInput(
+                    nextToken.Extent,
+                    nameof(ParserStrings.MissingEndCurlyBrace),
+                    ParserStrings.MissingEndCurlyBrace);
+
+                endingExtent = statementExtent is EmptyScriptExtent ? nextToken.Extent : statementExtent;
+            }
+
+            string methodName;
+            TypeConstraintAst returnType;
+            ParameterAst[] parameters;
+            if (kind == AccessorKind.Get)
+            {
+                methodName = string.Concat("get_", propertyName);
+                parameters = null;
+                if (propertyType == null)
+                {
+                    returnType = new TypeConstraintAst(
+                        PositionUtilities.EmptyExtent,
+                        new TypeName(PositionUtilities.EmptyExtent, "object"));
+                }
+                else
+                {
+                    returnType = new TypeConstraintAst(
+                        propertyType.Extent,
+                        propertyType);
+                }
+            }
+            else
+            {
+                methodName = string.Concat("set_", propertyName);
+                returnType = new TypeConstraintAst(
+                    PositionUtilities.EmptyExtent,
+                    new TypeName(PositionUtilities.EmptyExtent, "void"));
+
+                TypeConstraintAst parameterConstraint;
+                if (propertyType == null)
+                {
+                    parameterConstraint = new TypeConstraintAst(
+                        PositionUtilities.EmptyExtent,
+                        new TypeName(PositionUtilities.EmptyExtent, "object"));
+                }
+                else
+                {
+                    parameterConstraint = new TypeConstraintAst(
+                        propertyType.Extent,
+                        propertyType);
+                }
+
+                parameters = new[]
+                {
+                    new ParameterAst(
+                        PositionUtilities.EmptyExtent,
+                        new VariableExpressionAst(
+                            PositionUtilities.EmptyExtent,
+                            "value",
+                            splatted: false),
+                        new[] { parameterConstraint },
+                        defaultValue: null),
+                };
+            }
+
+            var statementBlock = new StatementBlockAst(
+                statementExtent,
+                statements,
+                traps);
+
+            var functionBody = new ScriptBlockAst(
+                statementExtent,
+                paramBlock: null,
+                statementBlock,
+                isFilter: false);
+
+            IScriptExtent accessorExtent = ExtentOf(accessorKindToken.Extent, endingExtent);
+            var functionDefinition = new FunctionDefinitionAst(
+                accessorExtent,
+                isFilter: false,
+                isWorkflow: false,
+                methodName,
+                parameters,
+                functionBody);
+
+            var methodAttributes = MethodAttributes.Public;
+            if (isStatic)
+            {
+                methodAttributes |= MethodAttributes.Static;
+            }
+
+            body = new FunctionMemberAst(
+                accessorExtent,
+                functionDefinition,
+                returnType,
+                Array.Empty<AttributeAst>(),
+                methodAttributes);
+
+            return accessorExtent;
         }
 
         private StatementAst MethodDeclarationRule(Token functionNameToken, string className, bool isStaticMethod)

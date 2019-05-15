@@ -570,6 +570,12 @@ namespace System.Management.Automation.Language
         /// <summary>The 'base' keyword</summary>
         Base = 168,
 
+        /// <summary>The 'get' keyword</summary>
+        Get = 169,
+
+        /// <summary>The 'set' keyword</summary>
+        Set = 170,
+
         #endregion Keywords
     }
 
@@ -921,6 +927,8 @@ namespace System.Management.Automation.Language
             /*              Command */ TokenFlags.Keyword,
             /*               Hidden */ TokenFlags.Keyword,
             /*                 Base */ TokenFlags.Keyword,
+            /*                  Get */ TokenFlags.Keyword,
+            /*                  Set */ TokenFlags.Keyword,
 
             #endregion Flags for keywords
         };
@@ -1119,6 +1127,8 @@ namespace System.Management.Automation.Language
             /*              Command */ "command",
             /*               Hidden */ "hidden",
             /*                 Base */ "base",
+            /*                  Get */ "get",
+            /*                  Set */ "set",
 
             #endregion Text for keywords
         };
@@ -1126,9 +1136,9 @@ namespace System.Management.Automation.Language
 #if DEBUG
         static TokenTraits()
         {
-            Diagnostics.Assert(s_staticTokenFlags.Length == ((int)TokenKind.Base + 1),
+            Diagnostics.Assert(s_staticTokenFlags.Length == ((int)TokenKind.Set + 1),
                                "Table size out of sync with enum - _staticTokenFlags");
-            Diagnostics.Assert(s_tokenText.Length == ((int)TokenKind.Base + 1),
+            Diagnostics.Assert(s_tokenText.Length == ((int)TokenKind.Set + 1),
                                "Table size out of sync with enum - _tokenText");
             // Some random assertions to make sure the enum and the traits are in sync
             Diagnostics.Assert(GetTraits(TokenKind.Begin) == (TokenFlags.Keyword | TokenFlags.ScriptBlockBlockName),

@@ -4490,6 +4490,8 @@ namespace System.Management.Automation.Language
                 if (assignToken.Kind == TokenKind.LCurly)
                 {
                     SkipToken();
+                    IScriptExtent getTokenExtent = null;
+                    IScriptExtent setTokenExtent = null;
                     while (true)
                     {
                         SkipNewlines();
@@ -4498,7 +4500,8 @@ namespace System.Management.Automation.Language
                             staticToken != null,
                             typeConstraint.TypeName,
                             out FunctionMemberAst accessorDefinition,
-                            out AccessorKind kind);
+                            out AccessorKind kind,
+                            out IScriptExtent kindExtent);
 
                         if (kind == 0)
                         {
@@ -4519,6 +4522,7 @@ namespace System.Management.Automation.Language
                         if (kind == AccessorKind.Get)
                         {
                             getterBody = accessorDefinition;
+                            getTokenExtent = kindExtent;
                             accessorKinds |= AccessorKind.Get;
                             continue;
                         }
@@ -4526,7 +4530,9 @@ namespace System.Management.Automation.Language
                         if (kind == AccessorKind.Set)
                         {
                             setterBody = accessorDefinition;
+                            setTokenExtent = kindExtent;
                             accessorKinds |= AccessorKind.Set;
+                            continue;
                         }
 
                         break;
@@ -4543,13 +4549,16 @@ namespace System.Management.Automation.Language
                             ParserStrings.MissingEndCurlyBrace);
                     }
 
-                    if (!(accessorKinds.HasFlag(AccessorKind.Get) || accessorKinds.HasFlag(AccessorKind.Set)))
-                    {
-                        ReportError(
-                            ExtentOf(assignToken, accessorCloseToken),
-                            nameof(ParserStrings.MissingAccessor),
-                            ParserStrings.MissingAccessor);
-                    }
+                    VerifyPropertyAccessors(
+                        className,
+                        varToken.Name,
+                        accessorKinds,
+                        assignToken,
+                        accessorCloseToken,
+                        getterBody,
+                        setterBody,
+                        getTokenExtent,
+                        setTokenExtent);
                 }
                 else
                 {
@@ -4656,6 +4665,65 @@ namespace System.Management.Automation.Language
             }
 
             return null;
+        }
+
+        private void VerifyPropertyAccessors(
+            string className,
+            string propertyName,
+            AccessorKind accessorKinds,
+            Token assignToken,
+            Token accessorCloseToken,
+            FunctionMemberAst getterBody,
+            FunctionMemberAst setterBody,
+            IScriptExtent getTokenExtent,
+            IScriptExtent setTokenExtent)
+        {
+            bool hasGet = accessorKinds.HasFlag(AccessorKind.Get);
+            bool hasSet = accessorKinds.HasFlag(AccessorKind.Set);
+            if (!(hasGet || hasSet))
+            {
+                ReportError(
+                    ExtentOf(assignToken, accessorCloseToken),
+                    nameof(ParserStrings.MissingAccessor),
+                    ParserStrings.MissingAccessor);
+                return;
+            }
+
+
+            bool getNeedsBody;
+            bool setNeedsBody;
+            if (hasGet && hasSet)
+            {
+                getNeedsBody = getterBody == null && setterBody != null;
+                setNeedsBody = getterBody != null && setterBody == null;
+                if (getNeedsBody || setNeedsBody)
+                {
+                    ReportError(
+                        getNeedsBody ? getTokenExtent : setTokenExtent,
+                        nameof(ParserStrings.AllAccessorsRequireBody),
+                        ParserStrings.AllAccessorsRequireBody,
+                        className,
+                        propertyName,
+                        getNeedsBody ? TokenKind.Get.Text() : TokenKind.Set.Text());
+                }
+
+                return;
+            }
+
+            getNeedsBody = hasGet && getterBody == null;
+            setNeedsBody = hasSet && setterBody == null;
+            if (!(getNeedsBody || setNeedsBody))
+            {
+                return;
+            }
+
+            ReportError(
+                getNeedsBody ? getTokenExtent : setTokenExtent,
+                nameof(ParserStrings.SoleAccessorRequiresBody),
+                ParserStrings.SoleAccessorRequiresBody,
+                className,
+                propertyName,
+                getNeedsBody ? TokenKind.Get.Text() : TokenKind.Set.Text());
         }
 
         private void RecordErrorAsts(Ast errAst, ref List<Ast> astsOnError)
@@ -5174,7 +5242,8 @@ namespace System.Management.Automation.Language
             bool isStatic,
             ITypeName propertyType,
             out FunctionMemberAst body,
-            out AccessorKind kind)
+            out AccessorKind kind,
+            out IScriptExtent kindExtent)
         {
             Token accessorKindToken = PeekToken();
             if (accessorKindToken.Kind == TokenKind.Get)
@@ -5189,9 +5258,11 @@ namespace System.Management.Automation.Language
             {
                 kind = 0;
                 body = null;
+                kindExtent = null;
                 return null;
             }
 
+            kindExtent = accessorKindToken.Extent;
             SkipToken();
             SkipNewlines();
             var nextToken = PeekToken();

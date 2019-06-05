@@ -1506,4 +1506,10 @@ ModuleVersion : Version of module to import. If used, ModuleName must represent 
   <data name="MissingAccessor" xml:space="preserve">
     <value>Missing property accessor declaration.</value>
   </data>
+  <data name="SoleAccessorRequiresBody" xml:space="preserve">
+    <value>'{0}.{1}.{2} must have a body because no other accessor has been declared.</value>
+  </data>
+  <data name="AllAccessorsRequireBody" xml:space="preserve">
+    <value>'{0}.{1}.{2}' must declare a body because another accessor already has.</value>
+  </data>
 </root>

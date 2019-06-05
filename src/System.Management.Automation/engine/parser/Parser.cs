@@ -4498,7 +4498,7 @@ namespace System.Management.Automation.Language
                         IScriptExtent accessorExtent = AccessorDeclarationRule(
                             varToken.Name,
                             staticToken != null,
-                            typeConstraint.TypeName,
+                            typeConstraint?.TypeName,
                             out FunctionMemberAst accessorDefinition,
                             out AccessorKind kind,
                             out IScriptExtent kindExtent);
@@ -5307,7 +5307,7 @@ namespace System.Management.Automation.Language
                 {
                     returnType = new TypeConstraintAst(
                         PositionUtilities.EmptyExtent,
-                        new TypeName(PositionUtilities.EmptyExtent, "object"));
+                        new ReflectionTypeName(typeof(object)));
                 }
                 else
                 {
@@ -5321,14 +5321,14 @@ namespace System.Management.Automation.Language
                 methodName = string.Concat("set_", propertyName);
                 returnType = new TypeConstraintAst(
                     PositionUtilities.EmptyExtent,
-                    new TypeName(PositionUtilities.EmptyExtent, "void"));
+                    new ReflectionTypeName(typeof(void)));
 
                 TypeConstraintAst parameterConstraint;
                 if (propertyType == null)
                 {
                     parameterConstraint = new TypeConstraintAst(
                         PositionUtilities.EmptyExtent,
-                        new TypeName(PositionUtilities.EmptyExtent, "object"));
+                        new ReflectionTypeName(typeof(object)));
                 }
                 else
                 {
@@ -5343,7 +5343,7 @@ namespace System.Management.Automation.Language
                         PositionUtilities.EmptyExtent,
                         new VariableExpressionAst(
                             PositionUtilities.EmptyExtent,
-                            "value",
+                            SpecialVariables.PSItem,
                             splatted: false),
                         new[] { parameterConstraint },
                         defaultValue: null),

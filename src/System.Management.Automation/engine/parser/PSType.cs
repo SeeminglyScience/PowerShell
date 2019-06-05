@@ -618,12 +618,18 @@ namespace System.Management.Automation.Language
 
                 if (propertyMemberAst.GetterBody != null)
                 {
-                    property.SetGetMethod((MethodBuilder)DefineMethod(propertyMemberAst.GetterBody));
+                    property.SetGetMethod(
+                        (MethodBuilder)DefineMethod(
+                            propertyMemberAst.GetterBody,
+                            isSpecialName: true));
                 }
 
                 if (propertyMemberAst.SetterBody != null)
                 {
-                    property.SetSetMethod((MethodBuilder)DefineMethod(propertyMemberAst.SetterBody));
+                    property.SetSetMethod(
+                        (MethodBuilder)DefineMethod(
+                            propertyMemberAst.SetterBody,
+                            isSpecialName: true));
                 }
 
                 if (propertyMemberAst.IsHidden)
@@ -845,7 +851,7 @@ namespace System.Management.Automation.Language
                 return mi != null && mi.IsFinal;
             }
 
-            private MethodBase DefineMethod(FunctionMemberAst functionMemberAst)
+            private MethodBase DefineMethod(FunctionMemberAst functionMemberAst, bool isSpecialName = false)
             {
                 var parameterTypes = GetParameterTypes(functionMemberAst);
                 if (parameterTypes == null)
@@ -896,6 +902,11 @@ namespace System.Management.Automation.Language
                     }
 
                     attributes |= Reflection.MethodAttributes.Virtual;
+                }
+
+                if (isSpecialName)
+                {
+                    attributes |= Reflection.MethodAttributes.SpecialName;
                 }
 
                 var returnType = functionMemberAst.GetReturnType();

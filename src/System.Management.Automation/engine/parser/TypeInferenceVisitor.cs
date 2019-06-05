@@ -1787,7 +1787,9 @@ namespace System.Management.Automation
                 // $_ is special, see if we're used in a script block in some pipeline.
                 while (parent != null)
                 {
-                    if (parent is ScriptBlockExpressionAst || parent is CatchClauseAst)
+                    if (parent is ScriptBlockExpressionAst ||
+                        parent is CatchClauseAst ||
+                        parent is FunctionMemberAst)
                     {
                         break;
                     }
@@ -1881,6 +1883,21 @@ namespace System.Management.Automation
                             inferredTypes.Add(result);
                         }
 
+                        return;
+                    }
+
+                    if (parent is FunctionMemberAst &&
+                        parent.Parent is PropertyMemberAst propertyMember &&
+                        parent == propertyMember.SetterBody)
+                    {
+                        var propertyType = propertyMember.PropertyType?.TypeName;
+                        if (propertyType != null)
+                        {
+                            inferredTypes.Add(new PSTypeName(propertyType));
+                            return;
+                        }
+
+                        inferredTypes.Add(new PSTypeName(typeof(object)));
                         return;
                     }
                 }

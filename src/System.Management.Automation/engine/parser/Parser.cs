@@ -4475,6 +4475,10 @@ namespace System.Management.Automation.Language
                 var varToken = token as VariableToken;
 
                 ExpressionAst initialValueAst = null;
+                AccessorKind accessorKinds = default;
+                FunctionMemberAst getterBody = null;
+                FunctionMemberAst setterBody = null;
+
                 SkipNewlines();
                 var assignToken = PeekToken();
                 if (assignToken.Kind == TokenKind.Equals)
@@ -4482,12 +4486,9 @@ namespace System.Management.Automation.Language
                     SkipToken();
                     SkipNewlines();
                     initialValueAst = ExpressionRule();
+                    accessorKinds = AccessorKind.Get | AccessorKind.Set;
                 }
-
-                AccessorKind accessorKinds = default;
-                FunctionMemberAst getterBody = null;
-                FunctionMemberAst setterBody = null;
-                if (assignToken.Kind == TokenKind.LCurly)
+                else if (assignToken.Kind == TokenKind.LCurly)
                 {
                     SkipToken();
                     IScriptExtent getTokenExtent = null;
@@ -4562,6 +4563,8 @@ namespace System.Management.Automation.Language
                 }
                 else
                 {
+                    Resync(token);
+                    NextToken();
                     accessorKinds = AccessorKind.Get | AccessorKind.Set;
                 }
 
@@ -4582,7 +4585,9 @@ namespace System.Management.Automation.Language
 
                 var endExtent = initialValueAst != null ? initialValueAst.Extent : varToken.Extent;
                 Token terminatorToken = PeekToken();
-                if (terminatorToken.Kind != TokenKind.NewLine && terminatorToken.Kind != TokenKind.Semi && terminatorToken.Kind != TokenKind.RCurly)
+                if (terminatorToken.Kind != TokenKind.NewLine &&
+                    terminatorToken.Kind != TokenKind.Semi &&
+                    terminatorToken.Kind != TokenKind.RCurly)
                 {
                     ReportIncompleteInput(After(endExtent),
                         nameof(ParserStrings.MissingPropertyTerminator),

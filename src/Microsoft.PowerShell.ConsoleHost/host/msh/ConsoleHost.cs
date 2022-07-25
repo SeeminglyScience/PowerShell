@@ -1388,14 +1388,11 @@ namespace Microsoft.PowerShell
         {
             get
             {
-                if (_outputSerializer == null)
-                {
-                    _outputSerializer =
-                        new WrappedSerializer(
-                            OutputFormat,
-                            "Output",
-                            Console.IsOutputRedirected ? Console.Out : ConsoleTextWriter);
-                }
+                _outputSerializer ??=
+                    new WrappedSerializer(
+                        OutputFormat,
+                        "Output",
+                        Console.IsOutputRedirected ? Console.Out : ConsoleTextWriter);
 
                 return _outputSerializer;
             }
@@ -1405,14 +1402,11 @@ namespace Microsoft.PowerShell
         {
             get
             {
-                if (_errorSerializer == null)
-                {
-                    _errorSerializer =
-                        new WrappedSerializer(
-                            ErrorFormat,
-                            "Error",
-                            Console.IsErrorRedirected ? Console.Error : ConsoleTextWriter);
-                }
+                _errorSerializer ??=
+                    new WrappedSerializer(
+                        ErrorFormat,
+                        "Error",
+                        Console.IsErrorRedirected ? Console.Error : ConsoleTextWriter);
 
                 return _errorSerializer;
             }
@@ -1885,7 +1879,7 @@ namespace Microsoft.PowerShell
                     sw.Stop();
 
                     var profileLoadTimeInMs = sw.ElapsedMilliseconds;
-                    if (profileLoadTimeInMs > 500 && s_cpp.ShowBanner)
+                    if (s_cpp.ShowBanner && !s_cpp.NoProfileLoadTime && profileLoadTimeInMs > 500)
                     {
                         Console.Error.WriteLine(ConsoleHostStrings.SlowProfileLoadingMessage, profileLoadTimeInMs);
                     }
@@ -2533,10 +2527,7 @@ namespace Microsoft.PowerShell
                                     prompt = EvaluateDebugPrompt();
                                 }
 
-                                if (prompt == null)
-                                {
-                                    prompt = EvaluatePrompt();
-                                }
+                                prompt ??= EvaluatePrompt();
                             }
 
                             ui.Write(prompt);

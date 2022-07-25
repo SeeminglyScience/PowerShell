@@ -1373,12 +1373,17 @@ namespace Microsoft.PowerShell.Commands
             path = NormalizePath(path);
             FileInfo result = new FileInfo(path);
 
-            // FileInfo.Exists is always false for a directory path, so we check the attribute for existence.
             var attributes = result.Attributes;
-            if ((int)attributes == -1) { /* Path doesn't exist. */ return null; }
-
             bool hidden = attributes.HasFlag(FileAttributes.Hidden);
             isContainer = attributes.HasFlag(FileAttributes.Directory);
+
+            // FileInfo allows for a file path to end in a trailing slash, but the resulting object
+            // is incomplete.  A trailing slash should indicate a directory.  So if the path ends in a
+            // trailing slash and is not a directory, return null
+            if (!isContainer && path.EndsWith(Path.DirectorySeparatorChar))
+            {
+                return null;
+            }
 
             FlagsExpression<FileAttributes> evaluator = null;
             FlagsExpression<FileAttributes> switchEvaluator = null;
@@ -5111,10 +5116,7 @@ namespace Microsoft.PowerShell.Commands
                 throw PSTraceSource.NewArgumentException(nameof(path));
             }
 
-            if (basePath == null)
-            {
-                basePath = string.Empty;
-            }
+            basePath ??= string.Empty;
 
             s_tracer.WriteLine("basePath = {0}", basePath);
 
@@ -5303,10 +5305,7 @@ namespace Microsoft.PowerShell.Commands
                 return string.Empty;
             }
 
-            if (basePath == null)
-            {
-                basePath = string.Empty;
-            }
+            basePath ??= string.Empty;
 
             s_tracer.WriteLine("basePath = {0}", basePath);
 
@@ -6243,10 +6242,7 @@ namespace Microsoft.PowerShell.Commands
                                     if (member != null)
                                     {
                                         value = member.Value;
-                                        if (result == null)
-                                        {
-                                            result = new PSObject();
-                                        }
+                                        result ??= new PSObject();
 
                                         result.Properties.Add(new PSNoteProperty(property, value));
                                     }

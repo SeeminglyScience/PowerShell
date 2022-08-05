@@ -4,6 +4,7 @@
 using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 #if !UNIX
 using System.DirectoryServices;
 #endif
@@ -753,6 +754,7 @@ namespace System.Management.Automation
                     { typeof(OutputTypeAttribute),                         new[] { "OutputType" } },
                     { typeof(object[]),                                    null },
                     { typeof(ObjectSecurity),                              new[] { "ObjectSecurity" } },
+                    { typeof(OrderedDictionary),                           new[] { "ordered" } },
                     { typeof(ParameterAttribute),                          new[] { "Parameter" } },
                     { typeof(PhysicalAddress),                             new[] { "PhysicalAddress" } },
                     { typeof(PSCredential),                                new[] { "pscredential" } },
@@ -927,10 +929,7 @@ namespace System.Management.Automation
         public static bool Remove(string typeName)
         {
             userTypeAccelerators.Remove(typeName);
-            if (s_allTypeAccelerators != null)
-            {
-                s_allTypeAccelerators.Remove(typeName);
-            }
+            s_allTypeAccelerators?.Remove(typeName);
 
             return true;
         }

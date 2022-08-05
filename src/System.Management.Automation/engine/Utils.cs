@@ -574,10 +574,7 @@ namespace System.Management.Automation
             catch (ObjectDisposedException) { }
             finally
             {
-                if (winPEKey != null)
-                {
-                    winPEKey.Dispose();
-                }
+                winPEKey?.Dispose();
             }
 #endif
             return false;
@@ -1067,10 +1064,7 @@ namespace System.Management.Automation
                     finally
                     {
                         context.AutoLoadingModuleInProgress.Remove(module);
-                        if (ps != null)
-                        {
-                            ps.Dispose();
-                        }
+                        ps?.Dispose();
                     }
                 }
             }
@@ -1127,10 +1121,7 @@ namespace System.Management.Automation
             }
             finally
             {
-                if (ps != null)
-                {
-                    ps.Dispose();
-                }
+                ps?.Dispose();
             }
 
             return result;
@@ -1188,10 +1179,7 @@ namespace System.Management.Automation
             }
             finally
             {
-                if (ps != null)
-                {
-                    ps.Dispose();
-                }
+                ps?.Dispose();
             }
 
             return result;
@@ -1617,10 +1605,7 @@ namespace System.Management.Automation.Internal
         public static void SetTestHook(string property, object value)
         {
             var fieldInfo = typeof(InternalTestHooks).GetField(property, BindingFlags.Static | BindingFlags.NonPublic);
-            if (fieldInfo != null)
-            {
-                fieldInfo.SetValue(null, value);
-            }
+            fieldInfo?.SetValue(null, value);
         }
 
         /// <summary>

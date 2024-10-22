@@ -37,7 +37,7 @@ jobs:
         UseJson: no
 
     - pwsh: |
-        Get-ChildItem Env: | Out-String -width 9999 -Stream | write-Verbose -Verbose
+        Get-ChildItem Env:
       displayName: 'Capture Environment Variables'
 
     - pwsh: |

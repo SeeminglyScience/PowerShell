@@ -301,8 +301,7 @@ namespace System.Management.Automation.Security
             // At this point, LockdownPolicy = Audit or Allowed.
             // If there was a WLDP policy, but WLDP didn't block it,
             // then it was explicitly allowed. Therefore, return the result for the file.
-            if (s_cachedWldpSystemPolicy is SystemEnforcementMode.Audit or SystemEnforcementMode.Enforce
-                || wldpFilePolicy is SystemScriptFileEnforcement.AllowConstrainedAudit)
+            if (s_cachedWldpSystemPolicy is SystemEnforcementMode.Audit or SystemEnforcementMode.Enforce)
             {
                 return wldpFilePolicy;
             }
